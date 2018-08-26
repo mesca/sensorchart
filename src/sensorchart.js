@@ -151,7 +151,7 @@ class Chart {
         for (let series of this.series) {
 
             // Remove old samples
-            series.removeOlderThan(min);
+            series.removeOlderThan(first);
 
             // Add a line
             lines.push({
