@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: sensorchart.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: sensorchart.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * @file A blazing fast charting library for streaming data.
+ * @author Pierre Clisson &lt;pierre@clisson.net>
+ */
+
+'use strict';
+
+// Dependencies
+const line2d = require('regl-line2d');
+
+
+/**
+ * A set of static utilities
+ *
+ * @namespace Helpers
+ */
+const Helpers = {
+
+    /**
+     * Converts an hexadecimal string color to a vec4 color suitable for WebGL
+     *
+     * @param {string} color - the hex color
+     * @return {array} the vec4 color
+     */
+    hexToVec4: function(color) {
+        let matches = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(color);
+        return matches ? [
+            parseInt(matches[1], 16) / 255,
+            parseInt(matches[2], 16) / 255,
+            parseInt(matches[3], 16) / 255,
+            1
+        ] : color;
+    }
+
+}
+
+
+/**
+ * Handle line rendering
+ */
+class Chart {
+
+    /**
+     * Initialize the chart
+     *
+     * @param {Element} canvas - the HTML canvas element
+     * @param {Object} options
+     * @param {number} options.scale - milliseconds per pixel
+     * @param {number} options.offset - the time offset, in milliseconds
+     * @param {boolean} options.stack - stack multiple series
+     * @param {string} options.background - the background color
+     * @param {string} options.foreground - the grid color
+     * @param {string} options.thickness - the grid thickness
+     * @param {number} options.sections - the number of vertical sections in the grid
+     * @param {number} options.tick - the tick marker, in milliseconds
+     */
+    constructor(canvas, options = {}) {
+        let default_options = {
+            min: -1,
+            max: 1,
+            scale: 20,
+            offset: -150,
+            background: '#E8E8E8',
+            foreground: '#808080',
+            thickness: 1,
+            sections: 2,
+            tick: 1000
+        };
+        this.options = Object.assign(default_options, options);
+        this.options.background = Helpers.hexToVec4(this.options.background);
+        this.options.foreground = Helpers.hexToVec4(this.options.foreground);
+        this.canvas = canvas;
+        this.context = this.canvas.getContext('webgl');
+        this.regl = createREGL({
+            gl: this.context,
+            extensions: 'angle_instanced_arrays'
+        });
+        this.lines = line2d(this.regl);
+        this.series = [];
+    }
+
+    /**
+     * Add a series to the chart
+     *
+     * @param {Series} series - the series object
+     */
+    addSeries(series) {
+        this.series.push(series);
+    }
+
+    /**
+     * Render the chart
+     */
+    render(timestamp) {
+
+        // Resize the canvas
+        let width = this.canvas.clientWidth;
+        let height = this.canvas.clientHeight
+        if (this.canvas.width != width || this.canvas.height != height) {
+          this.canvas.width = width;
+          this.canvas.height = height;
+        }
+        let viewport = [0, 0, width, height];
+
+        // Adjust the timestamp
+        timestamp += this.options.offset;
+
+        // Get the first and last displayed timestamps
+        let last = timestamp;
+        let first = last - width * this.options.scale;
+
+        // Hold line objects
+        let lines = [];
+
+        // Clear the canvas
+        this.regl.clear({color: this.options.background, depth: 1});
+
+        // Grid
+        let crisp = this.options.thickness % 2 === 0 ? false : true;
+        // Horizontal lines
+        let intervalY = Math.round(height / this.options.sections);
+        for (let i = 1; i &lt; this.options.sections; i++) {
+            let y = intervalY * i;
+            if (crisp &amp;&amp; y % 2 === 0) y += .5;
+            let viewport = [0, 0, width, height];
+            lines.push({
+                thickness: this.options.thickness,
+                color: this.options.foreground,
+                points: [0, y, width, y],
+                close: false,
+                viewport: viewport,
+                range: viewport
+            });
+        }
+        // Vertical lines
+        let f = timestamp - width * this.options.scale;
+        let l = timestamp - (timestamp % this.options.tick);
+        for (let i = l; i >= f; i -= this.options.tick) {
+            let x = width - (timestamp - i) / this.options.scale;
+            lines.push({
+                thickness: this.options.thickness,
+                color: this.options.foreground,
+                points: [x, 0, x, height],
+                close: false,
+                viewport: viewport,
+                range: viewport
+            });
+        }
+
+        // For each series
+        for (let series of this.series) {
+
+            // Remove old samples
+            series.removeOlderThan(min);
+
+            // Add a line
+            lines.push({
+                thickness: series.options.thickness,
+                color: series.options.color,
+                points: series.data,
+                close: false,
+                viewport: viewport,
+                range: [first, series.options.min, last, series.options.max]
+            });
+        }
+
+        // Render
+        this.lines.render(lines);
+
+    }
+
+}
+
+
+/**
+ * Hold time series data and options
+ */
+class Series {
+
+    /**
+     * Initialize the time series
+     *
+     * @param {Object} options
+     * @param {number} options.min - the minimum value
+     * @param {number} options.max - the maximum value
+     * @param {string} options.color - the line color
+     * @param {number} options.thickness - the line thickness
+     */
+    constructor(options = {}) {
+        let default_options = {
+            min: -1,
+            max: 1,
+            color: 'black',
+            thickness: 2
+        };
+        this.options = Object.assign(default_options, options);
+        this.data = [];
+    }
+
+    /**
+     * Append a sample to the chart
+     *
+     * @param {float} time - the timestamp, in milliseconds
+     * @param {number} value - the value
+     */
+    append(time, value) {
+        // TODO: push multiple
+        this.data.push([time, value]);
+    }
+
+    /**
+     * Remove old samples
+     *
+     * @param {number} timestamp - milliseconds
+     */
+    removeOlderThan(timestamp) {
+        for (var i = 0, l = this.data.length; i &lt; l; i++) {
+            if (this.data[i][0] >= timestamp) break;
+        }
+        this.data = this.data.slice(i);
+    }
+
+}
+
+
+/**
+ * Render charts at 60 FPS
+ */
+class Scheduler {
+
+    /**
+     * Initialize the scheduler
+     *
+     * @param {callback} callback - an optional callback function to receive FPS values
+     */
+    constructor(callback) {
+        this.callback = callback;
+        this.charts = [];
+    }
+
+    /**
+     * Add a chart to the scheduler
+     *
+     * @param {SensorChart} chart - the chart object
+     */
+    addChart(chart) {
+        this.charts.push(chart);
+    }
+
+    /**
+     * Start the scheduler
+     */
+    start() {
+        this.loop = true;
+        this.last = 0;
+        this.frame();
+    }
+
+    /**
+     * Stop the scheduler
+     */
+    stop() {
+        this.loop = false;
+    }
+
+    /**
+     * Render all charts
+     */
+    frame() {
+        var now = Date.now();
+        var fps = 1000 / (now - this.last);
+        this.last = now;
+        if (this.callback) this.callback(fps);
+        for (let chart of this.charts) {
+            chart.render(now);
+        }
+        if (this.loop) {
+            window.requestAnimationFrame(this.frame.bind(this));
+        }
+    }
+
+}</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Chart.html">Chart</a></li><li><a href="Scheduler.html">Scheduler</a></li><li><a href="Series.html">Series</a></li></ul><h3>Namespaces</h3><ul><li><a href="Helpers.html">Helpers</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.5.5</a> on Sun Aug 26 2018 17:52:42 GMT+0200 (CEST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
