@@ -6,11 +6,8 @@ If you don't need bells and whistles, don't care about older browsers, and want 
 
 ## Getting started
 
-For now, have a look at the example for basic instructions.
-
-## API
-
-[TODO]
+* See the `example` directory for commented boilerplate.
+* You can find the full API documentation in the `doc` directory.
 
 ## Credits
 
