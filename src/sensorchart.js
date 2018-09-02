@@ -116,12 +116,15 @@ class Chart {
         this.regl.clear({color: this.options.background, depth: 1});
 
         // Grid
-        let crisp = this.options.thickness % 2 === 0 ? false : true;
         // Horizontal lines
-        let intervalY = Math.round(height / this.options.sections);
-        for (let i = 1; i < this.options.sections; i++) {
+        let sections = this.options.sections;
+        if (this.options.stack) sections *= this.series.length;
+        let crisp = this.options.thickness % 2 === 0 ? false : true;
+        let intervalY = Math.round(height / sections);
+        for (let i = 1; i < sections; i++) {
             let y = intervalY * i;
-            if (crisp && y % 2 === 0) y += .5;
+            //if (crisp && y % 2 === 0) y += .5;
+            if (crisp) y += .5;
             let viewport = [0, 0, width, height];
             lines.push({
                 thickness: this.options.thickness,
@@ -147,8 +150,20 @@ class Chart {
             });
         }
 
+        // Stacked series
+        if (this.options.stack) {
+            var seriesHeight = height / this.series.length;
+            var i = 0;
+        }
+
         // For each series
         for (let series of this.series) {
+
+            // Stacked series
+            if (this.options.stack) {
+                i++;
+                viewport = {x: 0, y: height - seriesHeight * i, w: width, h: seriesHeight};
+            }
 
             // Remove old samples
             series.removeOlderThan(first);
@@ -162,6 +177,7 @@ class Chart {
                 viewport: viewport,
                 range: [first, series.options.min, last, series.options.max]
             });
+
         }
 
         // Render

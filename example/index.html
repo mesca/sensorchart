@@ -10,7 +10,7 @@
         #chart {
             border: 1px #808080 solid;
             width: 100%;
-            height: 200px;
+            height: 280px;
         }
 
     </style>
@@ -40,10 +40,11 @@
 
         // Play with this!
         let channels = 7;   // Number of lines
-        let rate = 10;      // Number of samples per second
+        let rate = 20;      // Number of samples per second
         let scale = 5;      // Milliseconds per pixel
         let min = -1;       // Minimum y value
         let max = 1;        // Maximum y value
+        let stack = true;   // Stack timeseries on top of each other
 
         // Rainbows!
         let colors = ['#9400D3', '#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#4B0082'];
@@ -68,7 +69,7 @@
 
         // Create a new chart, passing the HTML canvas element and some options.
         // See the API documentation for the full list of supported options.
-        let chart = new Chart(document.getElementById('chart'), {scale: scale});
+        let chart = new Chart(document.getElementById('chart'), {scale: scale, stack: stack});
 
         for (i = 0; i < channels; i++) {
 
