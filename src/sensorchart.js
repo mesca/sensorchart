@@ -233,6 +233,7 @@ class Series {
         for (var i = 0, l = this.data.length; i < l; i++) {
             if (this.data[i][0] >= timestamp) break;
         }
+        if (i > 0) i--; // keep one point outside of the chart
         this.data = this.data.slice(i);
     }
 
